@@ -19,6 +19,8 @@
 
 LOG_MODULE_REGISTER(silabs_sleeptimer_timer);
 
+#define SYSRTC_IRQHandler      IRQ022_Handler // SYSRTC IRQ Handler
+
 /* Maximum time interval between timer interrupts (in hw_cycles) */
 #define MAX_TIMEOUT_CYC (UINT32_MAX >> 1)
 #define MIN_DELAY_CYC   (4U)

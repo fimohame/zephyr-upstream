@@ -261,6 +261,17 @@
 			dma-channels = <12>;
 			status = "disabled";
 		};
+
+		sysrtc0: sysrtc@24048c00 {
+			compatible = "silabs,gecko-stimer";
+			reg = <0x24048c00 0x78>;
+			interrupts = <22 0>; 
+			interrupt-parent = <&nvic>;
+			interrupt-names = "sysrtc";
+			clock-frequency = <32768>;
+			prescaler = <1>;
+			status = "disabled";
+		};		
 	};
 };
 

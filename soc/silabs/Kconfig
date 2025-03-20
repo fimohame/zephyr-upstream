@@ -4,7 +4,7 @@
 
 rsource "*/Kconfig"
 
-if SOC_FAMILY_SILABS_S0 || SOC_FAMILY_SILABS_S1 || SOC_FAMILY_SILABS_S2
+if SOC_FAMILY_SILABS_S0 || SOC_FAMILY_SILABS_S1 || SOC_FAMILY_SILABS_S2 || SOC_FAMILY_SILABS_SIWX91X
 
 config SOC_GECKO_SDID
 	int
@@ -133,7 +133,7 @@ config SOC_GECKO_TRNG
 
 config SOC_SILABS_SLEEPTIMER
 	bool
-	select SOC_GECKO_PRS
+	select SOC_GECKO_PRS  if !(SOC_SERIES_SIWG917)
 	select SOC_GECKO_RTCC if SOC_FAMILY_SILABS_S2 && $(dt_nodelabel_enabled,rtcc0)
 	help
 	  Set if the Sleeptimer HAL module is used.

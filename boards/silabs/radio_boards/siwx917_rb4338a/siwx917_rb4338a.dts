@@ -29,6 +29,7 @@
 		sw0 = &button0;
 		sw1 = &button1;
 		dht0 = &si7021;
+		stimer0 = &sysrtc0;
 	};
 
 	leds {
@@ -112,4 +113,8 @@
 
 &wifi0 {
 	status = "okay";
+};
+
+&sysrtc0 {
+    status = "okay";
 };

@@ -3,6 +3,15 @@
 
 if SOC_FAMILY_SILABS_SIWX91X
 
+config SILABS_SLEEPTIMER_TIMER
+	default y
+
+config CORTEX_M_SYSTICK
+	default n if SILABS_SLEEPTIMER_TIMER
+
+config SYS_CLOCK_TICKS_PER_SEC
+	default 1024 if SILABS_SLEEPTIMER_TIMER
+
 config WISECONNECT_NETWORK_STACK
 	bool
 	select CMSIS_RTOS_V2
@@ -17,6 +26,7 @@ if WISECONNECT_NETWORK_STACK
 
 # WiseConnect create threads with realtime priority. Default (10kHz) clock tick
 # prevent proper use of the system with these threads.
+
 config SYS_CLOCK_TICKS_PER_SEC
 	default 1024
 
