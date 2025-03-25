@@ -162,12 +162,25 @@ if(CONFIG_SOC_SILABS_SLEEPTIMER)
     ${SISDK_DIR}/platform/service/sleeptimer/src/sl_sleeptimer.c
     ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/service/sleeptimer/src/sl_sleeptimer_hal_si91x_sysrtc.c
   )
+  zephyr_code_relocate(FILES
+    ${SISDK_DIR}/platform/service/sleeptimer/src/sl_sleeptimer.c
+    ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/service/sleeptimer/src/sl_sleeptimer_hal_si91x_sysrtc.c
+    ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/peripheral_drivers/src/rsi_sysrtc.c
+    LOCATION RAM
+    FILTER ".*"
+  )
   zephyr_compile_definitions(
     SL_CATALOG_SLEEPTIMER_PRESENT
     SL_CODE_COMPONENT_SLEEPTIMER=sleeptimer
     SL_CODE_COMPONENT_HAL_SYSRTC=hal_sysrtc
   )
 endif() # CONFIG_SOC_SILABS_SLEEPTIMER
+
+zephyr_code_relocate(FILES
+    ${ZEPHYR_BASE}/arch/arm/core/cortex_m/isr_wrapper.c
+    LOCATION RAM
+    FILTER ".*"
+)
 
 zephyr_linker_sources(ROM_SECTIONS linker/code_classification_text.ld)
 zephyr_linker_sources(RAMFUNC_SECTION linker/code_classification_ramfunc.ld)
