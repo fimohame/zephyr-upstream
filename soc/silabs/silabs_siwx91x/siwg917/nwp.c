@@ -165,6 +165,9 @@ static int siwg917_nwp_init(void)
 {
 	sl_wifi_device_configuration_t network_config;
 	sl_status_t status;
+	
+	IRQ_CONNECT(74, 3, IRQ074_Handler, 0, 0);
+	irq_enable(74);
 
 	siwg91x_get_nwp_config(SL_SI91X_CLIENT_MODE, &network_config);
 	/* TODO: If sl_net_*_profile() functions will be needed for WiFi then call
@@ -180,7 +183,7 @@ static int siwg917_nwp_init(void)
 SYS_INIT(siwg917_nwp_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);
 
 /* IRQn 74 is used for communication with co-processor */
-Z_ISR_DECLARE(74, 0, IRQ074_Handler, 0);
+//Z_ISR_DECLARE(74, 0, IRQ074_Handler, 0);
 
 /* Co-processor will use value stored in IVT to store its stack.
  *

@@ -383,6 +383,11 @@ struct uart_ns16550_dev_data {
 #endif
 };
 
+#ifdef CONFIG_FLASH_INTERRUPTS_TEST
+struct device serial_local_dev;
+struct uart_driver_api local_api;
+#endif /* CONFIG_FLASH_INTERRUPTS_TEST */
+
 static void ns16550_outbyte(const struct uart_ns16550_dev_config *cfg,
 			    uintptr_t port, uint8_t val)
 {
@@ -884,7 +889,11 @@ static int uart_ns16550_init(const struct device *dev)
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	dev_cfg->irq_config_func(dev);
 #endif
-
+#ifdef CONFIG_FLASH_INTERRUPTS_TEST
+	memcpy(&serial_local_dev, dev, sizeof(struct device));
+	memcpy(&local_api, (struct uart_driver_api *)dev->api, sizeof(struct uart_driver_api));
+	serial_local_dev.api = &local_api;
+#endif
 	return 0;
 }
 
@@ -1268,6 +1277,14 @@ static void uart_ns16550_irq_callback_set(const struct device *dev,
 	k_spin_unlock(&dev_data->lock, key);
 }
 
+#ifdef CONFIG_FLASH_INTERRUPTS_TEST
+static void uart_ns16550_direct_isr(void) {
+	struct uart_ns16550_dev_data * const dev_data = serial_local_dev.data;
+	if (dev_data->cb) {
+		dev_data->cb(&serial_local_dev, dev_data->cb_data);
+	}
+}
+#else
 /**
  * @brief Interrupt service routine.
  *
@@ -1324,7 +1341,7 @@ static void uart_ns16550_isr(const struct device *dev)
 	ns16550_outbyte(dev_cfg, IER(dev), cached_ier);
 #endif
 }
-
+#endif /* CONFIG_FLASH_INTERRUPTS_TEST */
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
 #ifdef CONFIG_UART_NS16550_LINE_CTRL
@@ -1818,9 +1835,8 @@ static DEVICE_API(uart, uart_ns16550_driver_api) = {
 	static void uart_ns16550_irq_config_func##n(const struct device *dev) \
 	{                                                                     \
 		ARG_UNUSED(dev);                                              \
-		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority),	      \
-			    uart_ns16550_isr, DEVICE_DT_INST_GET(n),	      \
-			    UART_NS16550_IRQ_FLAGS(n));			      \
+		IRQ_DIRECT_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority),	      \
+			    uart_ns16550_direct_isr, 0);			      \
 		irq_enable(DT_INST_IRQN(n));                                  \
 	}
 
