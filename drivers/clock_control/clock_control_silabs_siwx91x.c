@@ -15,6 +15,7 @@
 #include "rsi_sysrtc.h"
 #include "clock_update.h"
 #include "sl_si91x_clock_manager.h"
+#include "sl_si91x_power_manager.h"
 
 #define DT_DRV_COMPAT silabs_siwx91x_clock
 #define DT_DRV_COMPAT          silabs_siwx91x_clock
@@ -159,7 +160,7 @@ static enum clock_control_status siwx91x_clock_get_status(const struct device *d
 		return CLOCK_CONTROL_STATUS_OFF;
 	}
 }
-
+volatile uint32_t i = 1;
 static int siwx91x_clock_init(const struct device *dev)
 {
 	SystemCoreClockUpdate();
@@ -187,6 +188,14 @@ static int siwx91x_clock_init(const struct device *dev)
 	siwx91x_clock_on(dev, (clock_control_subsys_t)SIWX91X_CLK_I2C1);
 #endif
 
+if (IS_ENABLED(CONFIG_PM)) {
+	sl_si91x_power_manager_init(); //ps3 powersave //40Mhz
+	sl_si91x_power_manager_add_ps_requirement(SL_SI91X_POWER_MANAGER_PS4); //PS4 Powersave 100Mhz
+	sl_si91x_power_manager_set_clock_scaling(SL_SI91X_POWER_MANAGER_PERFORMANCE); //PS4 180Mhz Performance
+	sl_si91x_power_manager_remove_ps_requirement(SL_SI91X_POWER_MANAGER_PS4); //Ps4 180Mhz
+    // while(i);
+}
+// printf("Clock PM ********************************************************************* \r\n");
 	return 0;
 }
 

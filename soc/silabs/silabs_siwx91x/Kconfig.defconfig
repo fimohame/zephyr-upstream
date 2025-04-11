@@ -4,7 +4,12 @@
 if SOC_FAMILY_SILABS_SIWX91X
 
 configdefault SILABS_SLEEPTIMER_TIMER
+	default y if PM
+
+if PM
+configdefault SOC_SIWX91X_PM_BACKEND_PMGR
 	default y
+endif
 
 configdefault CORTEX_M_SYSTICK
 	default n if SILABS_SLEEPTIMER_TIMER
@@ -12,6 +17,15 @@ configdefault CORTEX_M_SYSTICK
 configdefault SYS_CLOCK_TICKS_PER_SEC
 	default 128 if !TICKLESS_KERNEL && SILABS_SLEEPTIMER_TIMER
 	default 1024 if SILABS_SLEEPTIMER_TIMER
+
+config IDLE_STACK_SIZE
+	default 512 if SOC_SIWX91X_PM_BACKEND_PMGR
+
+configdefault ZERO_LATENCY_IRQS
+	default y
+
+configdefault ZERO_LATENCY_LEVELS
+	default 2
 
 config WISECONNECT_NETWORK_STACK
 	bool

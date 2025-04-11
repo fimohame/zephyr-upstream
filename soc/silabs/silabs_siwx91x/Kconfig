@@ -9,8 +9,18 @@ config SOC_FAMILY_SILABS_SIWX91X
 	select CPU_HAS_ARM_MPU
 	select HAS_SILABS_WISECONNECT
 	select HAS_SEGGER_RTT if ZEPHYR_SEGGER_MODULE
+	select HAS_PM
 
 config SOC_SILABS_SLEEPTIMER
 	bool
 	help
-	  The Sleeptimer HAL module is used for SIWX91X.
+	  The Sleeptimer HAL module is used for SIWX91X.  
+	
+config SOC_SIWX91X_PM_BACKEND_PMGR
+	bool
+	select SOC_SILABS_SLEEPTIMER
+	help
+	  Implement PM using sl_power_manager service from Gecko SDK
+
+config SOC_SERIES_SIWG917
+	select SOC_EARLY_INIT_HOOK
