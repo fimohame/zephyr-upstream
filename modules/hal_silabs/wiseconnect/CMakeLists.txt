@@ -52,7 +52,6 @@ zephyr_library_sources(
   ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/cmsis_driver/UDMA.c
   ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/cmsis_driver/SAI.c
   ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/peripheral_drivers/src/rsi_usart.c
-  ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/peripheral_drivers/src/sl_si91x_m4_ps.c
   ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/peripheral_drivers/src/clock_update.c
   ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/peripheral_drivers/src/rsi_pwm.c
   ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/peripheral_drivers/src/rsi_sysrtc.c
@@ -166,6 +165,11 @@ if(CONFIG_WISECONNECT_NETWORK_STACK)
     ${WISECONNECT_DIR}/components/protocol/wifi/si91x/sl_wifi.c
     ${WISECONNECT_DIR}/components/protocol/wifi/src/sl_wifi_callback_framework.c
   )
+  zephyr_code_relocate(FILES
+  ${WISECONNECT_DIR}/components/device/silabs/si91x/wireless/ahb_interface/src/rsi_hal_mcu_m4_ram.c
+  ${WISECONNECT_DIR}/components/device/silabs/si91x/wireless/ahb_interface/src/rsi_hal_mcu_m4_rom.c
+  LOCATION RAM 
+  )   
 endif() # CONFIG_WISECONNECT_NETWORK_STACK
 
 if(CONFIG_SOC_SILABS_SLEEPTIMER)
@@ -184,6 +188,12 @@ if(CONFIG_SOC_SILABS_SLEEPTIMER)
     SL_CODE_COMPONENT_SLEEPTIMER=sleeptimer
     SL_CODE_COMPONENT_HAL_SYSRTC=hal_sysrtc
   )
+  zephyr_code_relocate(FILES
+    ${SISDK_DIR}/platform/service/sleeptimer/src/sl_sleeptimer.c
+    ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/service/sleeptimer/src/sl_sleeptimer_hal_si91x_sysrtc.c
+    ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/peripheral_drivers/src/rsi_sysrtc.c
+    LOCATION RAM
+  )
 endif() # CONFIG_SOC_SILABS_SLEEPTIMER
 
 # Power Manager
@@ -191,6 +201,7 @@ if(CONFIG_SOC_SIWX91X_PM_BACKEND_PMGR)
   zephyr_library_sources(
     ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/service/power_manager/src/sl_si91x_power_manager.c
     ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/service/power_manager/src/sli_si91x_power_manager.c
+    ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/peripheral_drivers/src/sl_si91x_m4_ps.c
     ${COMMON_DIR}/src/sl_slist.c  
   )
   zephyr_include_directories(
@@ -203,8 +214,18 @@ if(CONFIG_SOC_SIWX91X_PM_BACKEND_PMGR)
     SL_SI91X_SI917_RAM_MEM_CONFIG=1
     SL_CODE_COMPONENT_CORE=core
     SLI_SI91X_ENABLE_OS
+    DEBUG_ENABLE=1
+    DEBUG_UART=1
+    ENABLE_DEBUG_MODULE=1
   )
+  zephyr_code_relocate(FILES
+  ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/core/chip/src/rsi_deepsleep_soc.c
+  ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/service/power_manager/src/sl_si91x_power_manager.c
+  ${WISECONNECT_DIR}/components/device/silabs/si91x/mcu/drivers/service/power_manager/src/sli_si91x_power_manager.c
+  LOCATION RAM 
+  )  
 endif()
 
+zephyr_code_relocate(FILES ${ZEPHYR_BASE}/arch/arm/core/cortex_m/isr_wrapper.c LOCATION RAM)
 zephyr_linker_sources(ROM_SECTIONS linker/code_classification_text.ld)
 zephyr_linker_sources(RAMFUNC_SECTION linker/code_classification_ramfunc.ld)
