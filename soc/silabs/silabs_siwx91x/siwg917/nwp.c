@@ -32,11 +32,8 @@ int siwg91x_get_nwp_config(int wifi_oper_mode, sl_wifi_device_configuration_t *g
 			.feature_bit_map = SL_SI91X_FEAT_SECURITY_OPEN | SL_SI91X_FEAT_WPS_DISABLE,
 			.tcp_ip_feature_bit_map = SL_SI91X_TCP_IP_FEAT_EXTENSION_VALID,
 			.custom_feature_bit_map = SL_SI91X_CUSTOM_FEAT_EXTENSION_VALID,
-			.ext_custom_feature_bit_map =
-				MEMORY_CONFIG |
-				SL_SI91X_EXT_FEAT_XTAL_CLK,
-		}
-	};
+			.ext_custom_feature_bit_map = MEMORY_CONFIG | SL_SI91X_EXT_FEAT_XTAL_CLK,
+		}};
 
 	__ASSERT(get_config, "get_config cannot be NULL");
 
@@ -164,8 +161,10 @@ int siwx91x_nwp_mode_switch(uint8_t oper_mode)
 static int siwg917_nwp_init(void)
 {
 	sl_wifi_device_configuration_t network_config;
+	sl_wifi_performance_profile_t performance_profile = {.profile =
+								     DEEP_SLEEP_WITH_RAM_RETENTION};
 	sl_status_t status;
-	
+
 	IRQ_CONNECT(74, 3, IRQ074_Handler, 0, 0);
 	irq_enable(74);
 
@@ -177,13 +176,18 @@ static int siwg917_nwp_init(void)
 	if (status != SL_STATUS_OK) {
 		return -EINVAL;
 	}
+	status = sl_wifi_set_performance_profile(&performance_profile);
+	if (status != SL_STATUS_OK) {
+
+		return -EINVAL;
+	}
 
 	return 0;
 }
 SYS_INIT(siwg917_nwp_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);
 
 /* IRQn 74 is used for communication with co-processor */
-//Z_ISR_DECLARE(74, 0, IRQ074_Handler, 0);
+// Z_ISR_DECLARE(74, 0, IRQ074_Handler, 0);
 
 /* Co-processor will use value stored in IVT to store its stack.
  *
@@ -191,9 +195,9 @@ SYS_INIT(siwg917_nwp_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);
  * FIXME: Allow to configure size of buffer
  */
 static uint8_t __aligned(8) siwg917_nwp_stack[10 * 1024];
-static Z_DECL_ALIGN(struct _isr_list) Z_GENERIC_SECTION(.intList)
-	__used __isr_siwg917_coprocessor_stack_irq = {
+static Z_DECL_ALIGN(struct _isr_list)
+	Z_GENERIC_SECTION(.intList) __used __isr_siwg917_coprocessor_stack_irq = {
 		.irq = 30,
 		.flags = ISR_FLAG_DIRECT,
 		.func = &siwg917_nwp_stack[sizeof(siwg917_nwp_stack) - 1],
-	};
+};
