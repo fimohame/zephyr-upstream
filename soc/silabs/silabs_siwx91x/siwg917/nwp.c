@@ -33,10 +33,10 @@ int siwg91x_get_nwp_config(int wifi_oper_mode, sl_wifi_device_configuration_t *g
 		.region_code = DEFAULT_REGION,
 		.boot_option = LOAD_NWP_FW,
 		.boot_config = {
-			.feature_bit_map = SL_SI91X_FEAT_SECURITY_OPEN | SL_SI91X_FEAT_WPS_DISABLE,
+			.feature_bit_map = SL_SI91X_FEAT_SECURITY_OPEN | SL_SI91X_FEAT_WPS_DISABLE |SL_SI91X_FEAT_ULP_GPIO_BASED_HANDSHAKE,
 			.tcp_ip_feature_bit_map = SL_SI91X_TCP_IP_FEAT_EXTENSION_VALID,
 			.custom_feature_bit_map = SL_SI91X_CUSTOM_FEAT_EXTENSION_VALID,
-			.ext_custom_feature_bit_map = SL_SI91X_EXT_FEAT_XTAL_CLK,
+			.ext_custom_feature_bit_map = SL_SI91X_EXT_FEAT_XTAL_CLK | SL_SI91X_EXT_FEAT_FRONT_END_SWITCH_PINS_ULP_GPIO_4_5_0,
 		}
 	};
 	sl_si91x_boot_configuration_t *boot_config = &default_config.boot_config;
@@ -181,6 +181,8 @@ static int siwg917_nwp_init(void)
 {
 	sl_wifi_device_configuration_t network_config;
 	sl_status_t status;
+	sl_wifi_performance_profile_t performance_profile = {.profile =
+		DEEP_SLEEP_WITH_RAM_RETENTION};
 
 	siwg91x_get_nwp_config(SL_SI91X_CLIENT_MODE, &network_config);
 	/* TODO: If sl_net_*_profile() functions will be needed for WiFi then call
@@ -191,6 +193,26 @@ static int siwg917_nwp_init(void)
 		return -EINVAL;
 	}
 
+	status = sl_wifi_set_performance_profile(&performance_profile);
+	if (status != SL_STATUS_OK) {
+
+		return -EINVAL;
+	}
+
+	printf("sl_wifi_set_performance_profile\r\n");
+	printf("%x\n",*((volatile uint32_t*)(0x46008000 + 0x174)));
+	printf("%x\n",*((volatile uint32_t*)(0x46008000 + 0x174)));
+	printf("%x\n",*((volatile uint32_t*)(0x46008000 + 0x174)));
+	printf("%x\n",*((volatile uint32_t*)(0x46008000 + 0x174)));
+
+	printf("sl_wifi_set_performance_profile _***** \r\n");
+	printf("%x\n",*((volatile uint32_t*)(0x41050000 + 0x94)));
+	printf("%x\n",*((volatile uint32_t*)(0x41050000 + 0x94)));
+	printf("%x\n",*((volatile uint32_t*)(0x41050000 + 0x94)));
+	printf("%x\n",*((volatile uint32_t*)(0x41050000 + 0x94)));
+	
+ printf("NWP INIT SUCCESS\r\n");
+	
 	return 0;
 }
 SYS_INIT(siwg917_nwp_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);
