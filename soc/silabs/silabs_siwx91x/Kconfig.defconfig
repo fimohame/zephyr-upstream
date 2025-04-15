@@ -4,7 +4,12 @@
 if SOC_FAMILY_SILABS_SIWX91X
 
 configdefault SILABS_SLEEPTIMER_TIMER
-	default y
+	default y if PM
+
+if PM
+ configdefault SOC_SIWX91X_PM_BACKEND_PMGR
+ 	default y
+ endif
 
 configdefault CORTEX_M_SYSTICK
 	default n if SILABS_SLEEPTIMER_TIMER
@@ -22,6 +27,15 @@ config WISECONNECT_NETWORK_STACK
 	select THREAD_STACK_INFO
 	select THREAD_MONITOR
 	select INIT_STACKS
+
+config IDLE_STACK_SIZE
+ 	default 512 if SOC_SIWX91X_PM_BACKEND_PMGR
+ 
+ configdefault ZERO_LATENCY_IRQS
+ 	default y
+ 
+ configdefault ZERO_LATENCY_LEVELS
+ 	default 2
 
 if WISECONNECT_NETWORK_STACK
 

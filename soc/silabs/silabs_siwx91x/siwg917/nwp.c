@@ -170,6 +170,8 @@ static int siwg917_nwp_init(void)
 {
 	sl_wifi_device_configuration_t network_config;
 	sl_status_t status;
+	sl_wifi_performance_profile_t performance_profile = {.profile =
+		DEEP_SLEEP_WITH_RAM_RETENTION};
 
 	siwg91x_get_nwp_config(SL_SI91X_CLIENT_MODE, &network_config);
 	/* TODO: If sl_net_*_profile() functions will be needed for WiFi then call
@@ -180,6 +182,12 @@ static int siwg917_nwp_init(void)
 		return -EINVAL;
 	}
 
+	status = sl_wifi_set_performance_profile(&performance_profile);
+	if (status != SL_STATUS_OK) {
+
+		return -EINVAL;
+	}
+	
 	return 0;
 }
 SYS_INIT(siwg917_nwp_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);
