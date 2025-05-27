@@ -33,6 +33,8 @@
 #include <zephyr/sys/sys_io.h>
 #include <zephyr/spinlock.h>
 #include <zephyr/irq.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 
 #if defined(CONFIG_PINCTRL)
 #include <zephyr/drivers/pinctrl.h>
@@ -731,6 +733,25 @@ out:
 	k_spin_unlock(&dev_data->lock, key);
 	return ret;
 };
+
+__maybe_unused static int uart_ns16550_pm_action(const struct device *dev,
+						 enum pm_device_action action)
+{
+    struct uart_ns16550_dev_data *data = (struct uart_ns16550_dev_data *)dev->data;
+    struct uart_config *uart_cfg = &data->uart_config;
+
+    switch (action) {
+	case PM_DEVICE_ACTION_RESUME:
+		
+    int ret = uart_ns16550_configure(dev, uart_cfg);
+		return ret;
+
+    case PM_DEVICE_ACTION_SUSPEND:
+	return 0;
+    default:
+        return -ENOTSUP;
+    }
+}
 
 #ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
 static int uart_ns16550_config_get(const struct device *dev,
@@ -1979,7 +2000,8 @@ static DEVICE_API(uart, uart_ns16550_driver_api) = {
 	static struct uart_ns16550_dev_data uart_ns16550_dev_data_##n = {            \
 		UART_NS16550_COMMON_DEV_DATA_INITIALIZER(n)                          \
 	};                                                                           \
-	DEVICE_DT_INST_DEFINE(n, uart_ns16550_init, NULL,                            \
+	PM_DEVICE_DT_INST_DEFINE(n, uart_ns16550_pm_action);                         \
+	DEVICE_DT_INST_DEFINE(n, uart_ns16550_init, PM_DEVICE_DT_INST_GET(n),	     \
 			      &uart_ns16550_dev_data_##n, &uart_ns16550_dev_cfg_##n, \
 			      PRE_KERNEL_1, CONFIG_SERIAL_INIT_PRIORITY,             \
 			      &uart_ns16550_driver_api);                             \
@@ -1997,7 +2019,8 @@ static DEVICE_API(uart, uart_ns16550_driver_api) = {
 	static struct uart_ns16550_dev_data uart_ns16550_dev_data_##n = {            \
 		UART_NS16550_COMMON_DEV_DATA_INITIALIZER(n)                          \
 	};                                                                           \
-	DEVICE_DT_INST_DEFINE(n, uart_ns16550_init, NULL,                            \
+	PM_DEVICE_DT_INST_DEFINE(n, uart_ns16550_pm_action);                         \
+	DEVICE_DT_INST_DEFINE(n, uart_ns16550_init, PM_DEVICE_DT_INST_GET(n),	     \
 			      &uart_ns16550_dev_data_##n, &uart_ns16550_dev_cfg_##n, \
 			      PRE_KERNEL_1,            \
 			      CONFIG_SERIAL_INIT_PRIORITY,                           \
