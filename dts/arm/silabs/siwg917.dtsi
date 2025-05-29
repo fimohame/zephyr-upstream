@@ -89,6 +89,7 @@
 		compatible = "silabs,siwx91x-nwp";
 		power-profile = "high-performance";
 
+<<<<<<< HEAD
 		bt_hci0: bt_hci {
 			compatible = "silabs,siwx91x-bt-hci";
 			status = "disabled";
@@ -98,6 +99,21 @@
 			compatible = "silabs,siwx91x-wifi";
 			status = "disabled";
 		};
+=======
+	wifi0: wifi {
+		compatible = "silabs,siwx91x-wifi";
+		/*
+		 * Power/performance profile (see enum sl_si91x_performance_profile_t):
+		 *   0: HIGH_PERFORMANCE
+		 *   1: ASSOCIATED_POWER_SAVE
+		 *   2: ASSOCIATED_POWER_SAVE_LOW_LATENCY
+		 *   3: DEEP_SLEEP_WITHOUT_RAM_RETENTION
+		 *   4: DEEP_SLEEP_WITH_RAM_RETENTION
+		 * Default: 0 (HIGH_PERFORMANCE)
+		 */
+		power-profile = <0>;
+		status = "disabled";
+>>>>>>> 7235174a69c (driver: nwp: siwx917: Add configurable power profile support via DeviceTree)
 	};
 
 	soc {
