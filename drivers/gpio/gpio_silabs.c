@@ -77,6 +77,7 @@ static int gpio_silabs_dev_configure(const struct device *dev,
 	sl_gpio_t gpio = { .port = gpio_index, .pin = pin };
 	sl_gpio_mode_t mode;
 	unsigned int out = 0U;
+	sl_status_t status;
 
 	if (flags & GPIO_OUTPUT) {
 		/* Following modes enable both output and input */
@@ -95,7 +96,11 @@ static int gpio_silabs_dev_configure(const struct device *dev,
 			out = 0U;
 		} else {
 			bool pin_out;
-			out = sl_gpio_get_pin_output(&gpio, &pin_out);
+			status  = sl_gpio_get_pin_output(&gpio, &pin_out);
+			            if (status != SL_STATUS_OK) {
+                return -EIO;
+            }
+            out = pin_out;
 		}
 	} else if (flags & GPIO_INPUT) {
 		if (flags & GPIO_PULL_UP) {
@@ -118,9 +123,8 @@ static int gpio_silabs_dev_configure(const struct device *dev,
 	 * 0 - pin is input, 1 - pin is output
 	 */
 
-	sl_gpio_set_pin_mode(&gpio, mode, out);
-
-	return 0;
+	status = sl_gpio_set_pin_mode(&gpio, mode, out);
+    return (status == SL_STATUS_OK) ? 0 : -EIO;
 }
 
 #ifdef CONFIG_GPIO_GET_CONFIG
@@ -128,91 +132,95 @@ static int gpio_silabs_dev_get_config(const struct device *dev,
 				 gpio_pin_t pin,
 				 gpio_flags_t *out_flags)
 {
-	const struct gpio_silabs_dev_config *config = dev->config;
-	sl_gpio_port_t gpio_index = config->gpio_index;
-	sl_gpio_t gpio = { .port = gpio_index, .pin = pin };
-	sl_gpio_pin_config_t pin_config;
-	bool out;
-	gpio_flags_t flags = 0;
+    const struct gpio_silabs_dev_config *config = dev->config;
+    sl_gpio_port_t gpio_index = config->gpio_index;
+    sl_gpio_t gpio = { .port = gpio_index, .pin = pin };
+    sl_gpio_pin_config_t pin_config;
+    bool out;
+    gpio_flags_t flags = 0;
+    sl_status_t status;
 
-	sl_gpio_get_pin_config(&gpio, &pin_config);
-	sl_gpio_get_pin_output(&gpio, &out);
+    status = sl_gpio_get_pin_config(&gpio, &pin_config);
+    if (status != SL_STATUS_OK) {
+        return -EIO;
+    }
+    
+    status = sl_gpio_get_pin_output(&gpio, &out);
+    if (status != SL_STATUS_OK) {
+        return -EIO;
+    }
 
-	switch (pin_config.mode) {
-	case SL_GPIO_MODE_WIRED_AND:
-		flags = GPIO_OUTPUT | GPIO_OPEN_DRAIN;
-		flags |= out ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
-		break;
-	case SL_GPIO_MODE_WIRED_OR:
-		flags = GPIO_OUTPUT | GPIO_OPEN_SOURCE;
-		flags |= out ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
-		break;
-	case SL_GPIO_MODE_PUSH_PULL:
-		flags = GPIO_OUTPUT | GPIO_PUSH_PULL;
-		flags |= out ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
-		break;
-	case SL_GPIO_MODE_INPUT_PULL:
-		flags = GPIO_INPUT;
-		flags |= out ? GPIO_PULL_UP : GPIO_PULL_DOWN;
-		break;
-	case SL_GPIO_MODE_INPUT:
-		flags = GPIO_INPUT;
-		break;
-	case SL_GPIO_MODE_DISABLED:
-		flags = GPIO_DISCONNECTED;
-		break;
-	default:
-		break;
-	}
+    switch (pin_config.mode) {
+    case SL_GPIO_MODE_WIRED_AND:
+        flags = GPIO_OUTPUT | GPIO_OPEN_DRAIN;
+        flags |= out ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
+        break;
+    case SL_GPIO_MODE_WIRED_OR:
+        flags = GPIO_OUTPUT | GPIO_OPEN_SOURCE;
+        flags |= out ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
+        break;
+    case SL_GPIO_MODE_PUSH_PULL:
+        flags = GPIO_OUTPUT | GPIO_PUSH_PULL;
+        flags |= out ? GPIO_OUTPUT_HIGH : GPIO_OUTPUT_LOW;
+        break;
+    case SL_GPIO_MODE_INPUT_PULL:
+        flags = GPIO_INPUT;
+        flags |= out ? GPIO_PULL_UP : GPIO_PULL_DOWN;
+        break;
+    case SL_GPIO_MODE_INPUT:
+        flags = GPIO_INPUT;
+        break;
+    case SL_GPIO_MODE_DISABLED:
+        flags = GPIO_DISCONNECTED;
+        break;
+    default:
+        break;
+    }
 
-	*out_flags = flags;
+    *out_flags = flags;
 
-	return 0;
+    return 0;
 }
 #endif
 
 static int gpio_silabs_dev_port_get_raw(const struct device *dev, uint32_t *value)
 {
-	const struct gpio_silabs_dev_config *config = dev->config;
-	sl_gpio_port_t gpio_index = config->gpio_index;
+    const struct gpio_silabs_dev_config *config = dev->config;
+    sl_gpio_port_t gpio_index = config->gpio_index;
 
-	sl_gpio_get_port_input(gpio_index, value);
-
-	return 0;
+    sl_status_t status = sl_gpio_get_port_input(gpio_index, value);
+    return (status == SL_STATUS_OK) ? 0 : -EIO;
 }
 
 static int gpio_silabs_dev_port_set_masked_raw(const struct device *dev,
 					  uint32_t mask,
 					  uint32_t value)
 {
-	const struct gpio_silabs_dev_config *config = dev->config;
-	sl_gpio_port_t gpio_index = config->gpio_index;
+    const struct gpio_silabs_dev_config *config = dev->config;
+    sl_gpio_port_t gpio_index = config->gpio_index;
 
-	sl_gpio_set_port(gpio_index, value & mask);
-
-	return 0;
+    sl_status_t status = sl_gpio_set_port(gpio_index, value & mask);
+    return (status == SL_STATUS_OK) ? 0 : -EIO;
 }
 
 static int gpio_silabs_dev_port_set_bits_raw(const struct device *dev,
 					uint32_t mask)
 {
-	const struct gpio_silabs_dev_config *config = dev->config;
-	sl_gpio_port_t gpio_index = config->gpio_index;
+    const struct gpio_silabs_dev_config *config = dev->config;
+    sl_gpio_port_t gpio_index = config->gpio_index;
 
-	sl_gpio_set_port(gpio_index, mask);
-
-	return 0;
+    sl_status_t status = sl_gpio_set_port(gpio_index, mask);
+    return (status == SL_STATUS_OK) ? 0 : -EIO;
 }
 
 static int gpio_silabs_dev_port_clear_bits_raw(const struct device *dev,
 					  uint32_t mask)
 {
-	const struct gpio_silabs_dev_config *config = dev->config;
-	sl_gpio_port_t gpio_index = config->gpio_index;
+    const struct gpio_silabs_dev_config *config = dev->config;
+    sl_gpio_port_t gpio_index = config->gpio_index;
 
-	sl_gpio_clear_port(gpio_index, mask);
-
-	return 0;
+    sl_status_t status = sl_gpio_clear_port(gpio_index, mask);
+    return (status == SL_STATUS_OK) ? 0 : -EIO;
 }
 
 static int gpio_silabs_dev_port_toggle_bits(const struct device *dev,
@@ -237,40 +245,47 @@ static int gpio_silabs_dev_pin_interrupt_configure(const struct device *dev,
 					      enum gpio_int_mode mode,
 					      enum gpio_int_trig trig)
 {
-	const struct gpio_silabs_dev_config *config = dev->config;
-	struct gpio_silabs_dev_data *data = dev->data;
-	sl_gpio_t gpio = {.port = config->gpio_index, .pin = pin};
-	sl_gpio_interrupt_flag_t flag = SL_GPIO_INTERRUPT_RISING_FALLING_EDGE;
+    const struct gpio_silabs_dev_config *config = dev->config;
+    struct gpio_silabs_dev_data *data = dev->data;
+    sl_gpio_t gpio = {.port = config->gpio_index, .pin = pin};
+    sl_gpio_interrupt_flag_t flag = SL_GPIO_INTERRUPT_RISING_FALLING_EDGE;
+    sl_status_t status;
 
-	/* Interrupt on static level is not supported by the hardware */
-	if (mode == GPIO_INT_MODE_LEVEL) {
-		return -ENOTSUP;
-	}
+    /* Interrupt on static level is not supported by the hardware */
+    if (mode == GPIO_INT_MODE_LEVEL) {
+        return -ENOTSUP;
+    }
 
-	if (mode == GPIO_INT_MODE_DISABLED) {
-		sl_gpio_disable_interrupts(BIT(pin));
-	} else {
-		/* Interrupt line is already in use */
-		if ((GPIO->IEN & BIT(pin)) != 0) {
-			/* Check if the interrupt is already configured for this port */
-			if (!(data->int_enabled_mask & BIT(pin))) {
-				return -EBUSY;
-			}
-		}
+    if (mode == GPIO_INT_MODE_DISABLED) {
+        status = sl_gpio_disable_interrupts(BIT(pin));
+        if (status != SL_STATUS_OK) {
+            return -EIO;
+        }
+    } else {
+        /* Interrupt line is already in use */
+        if ((GPIO->IEN & BIT(pin)) != 0) {
+            /* Check if the interrupt is already configured for this port */
+            if (!(data->int_enabled_mask & BIT(pin))) {
+                return -EBUSY;
+            }
+        }
 
-		if (trig == GPIO_INT_TRIG_LOW) {
-			flag = SL_GPIO_INTERRUPT_FALLING_EDGE;
-		} else if (trig == GPIO_INT_TRIG_HIGH) {
-			flag = SL_GPIO_INTERRUPT_RISING_EDGE;
-		} /* default is GPIO_INT_TRIG_BOTH */
+        if (trig == GPIO_INT_TRIG_LOW) {
+            flag = SL_GPIO_INTERRUPT_FALLING_EDGE;
+        } else if (trig == GPIO_INT_TRIG_HIGH) {
+            flag = SL_GPIO_INTERRUPT_RISING_EDGE;
+        } /* default is GPIO_INT_TRIG_BOTH */
 
-		int32_t int_no = (int32_t)pin;
-		sl_gpio_configure_external_interrupt(&gpio, &int_no, flag, NULL, NULL);
-	}
+        int32_t int_no = (int32_t)pin;
+        status = sl_gpio_configure_external_interrupt(&gpio, &int_no, flag, NULL, NULL);
+        if (status != SL_STATUS_OK) {
+            return -EIO;
+        }
+    }
 
-	WRITE_BIT(data->int_enabled_mask, pin, mode != GPIO_INT_DISABLE);
+    WRITE_BIT(data->int_enabled_mask, pin, mode != GPIO_INT_DISABLE);
 
-	return 0;
+    return 0;
 }
 
 static int gpio_silabs_dev_manage_callback(const struct device *dev,
@@ -339,14 +354,17 @@ DEVICE_DT_DEFINE(DT_INST(0, silabs_gpio),
 		    gpio_silabs_common_init,
 		    NULL,
 		    &gpio_silabs_dev_common_data, &gpio_silabs_dev_common_config,
-		    PRE_KERNEL_1, CONFIG_gpio_silabs_common_init_PRIORITY,
+		    PRE_KERNEL_1, CONFIG_GPIO_SILABS_COMMON_INIT_PRIORITY, 
 		    &gpio_silabs_dev_common_driver_api);
 
 static int gpio_silabs_common_init(const struct device *dev)
 {
 #ifdef CONFIG_SOC_GECKO_DEV_INIT
 	// CMU_ClockEnable(cmuClock_GPIO, true);
-	sl_gpio_init();
+	sl_status_t status = sl_gpio_init();
+	 if (status != SL_STATUS_OK) {
+        return -EIO;
+    }
 #endif
 	gpio_silabs_dev_common_data.count = 0;
 	IRQ_CONNECT(GPIO_EVEN_IRQn,
