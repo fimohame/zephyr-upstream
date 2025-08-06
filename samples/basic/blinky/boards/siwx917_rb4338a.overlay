@@ -1,0 +1,41 @@
+/*
+ * Copyright (c) 2021 Cypress Semiconductor Corporation.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&egpio0 {
+	zephyr,pm-device-runtime-auto;
+};
+
+
+&spi0 {
+    status = "okay";
+	zephyr,pm-device-runtime-auto;
+    cs-gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-names = "default";
+
+	dmas =  <&dma0 11>, <&dma0 10>;
+	dma-names = "tx", "rx";
+};
+
+&dma0 {
+	status = "okay";
+	zephyr,pm-device-runtime-auto;
+};
+
+&nwp {
+    power-profile = "deep-sleep-with-ram-retention";
+    status = "okay";
+};
+
+&pinctrl0 {
+	spi0_default: spi0_default {
+		out {
+			pinmux = <GSPI_CLK_HP25>, <GSPI_MOSI_HP27>;
+		};
+		in {
+			pinmux = <GSPI_MISO_HP26>;
+		};
+	};
+};

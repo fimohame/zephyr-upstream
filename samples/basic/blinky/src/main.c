@@ -5,7 +5,7 @@
 #include <string.h>
 
 #define SLEEP_TIME_MS 1000
-#define BUF_SIZE      32
+#define BUF_SIZE      8
 
 #define LED0_NODE DT_ALIAS(led0)
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
@@ -126,13 +126,20 @@ int main(void)
         memset(huge_rx_buf, 0, BUF_SIZE);
 
 #if CONFIG_SPI_ASYNC
-        async_evt.signal->signaled = 0U;
+        k_poll_signal_reset(&async_sig);
+        // async_sig.result = 0;
+        async_evt.signal = &async_sig;
         async_evt.state = K_POLL_STATE_NOT_READY;
 
         k_sem_give(&start_async);
 
         ret = spi_transceive_signal(spi_dev, &spi_cfg, &tx_bufs, &rx_bufs, &async_sig);
         printf("spi_transceive_signal returned %d\n", ret);
+        printf("DMA TX: ");
+        for (int i = 0; i < BUF_SIZE; ++i) printf("%02X ", huge_tx_buf[i]);
+        printf("\nDMA RX: ");
+        for (int i = 0; i < BUF_SIZE; ++i) printf("%02X ", huge_rx_buf[i]);
+        printf("\n");
         if (ret == -EINVAL || ret == -ENOTSUP) {
             printf("Spi config is invalid or not supported for this controller\n");
             break;

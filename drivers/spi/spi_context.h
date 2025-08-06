@@ -115,6 +115,7 @@ static inline void spi_context_lock(struct spi_context *ctx,
 				    void *callback_data,
 				    const struct spi_config *spi_cfg)
 {
+	printf("spi_context_lock called: ctx=%p\n", ctx);
 #ifdef CONFIG_MULTITHREADING
 	bool already_locked = (spi_cfg->operation & SPI_LOCK_ON) &&
 			      (k_sem_count_get(&ctx->lock) == 0) &&
@@ -142,6 +143,7 @@ static inline void spi_context_lock(struct spi_context *ctx,
  */
 static inline void spi_context_release(struct spi_context *ctx, int status)
 {
+	printf("spi_context_release called: ctx=%p, status=%d\n", ctx, status);
 #ifdef CONFIG_MULTITHREADING
 #ifdef CONFIG_SPI_SLAVE
 	if (status >= 0 && ((ctx->config == NULL) || (ctx->config->operation & SPI_LOCK_ON))) {
@@ -259,6 +261,7 @@ static inline void spi_context_complete(struct spi_context *ctx,
 					const struct device *dev,
 					int status)
 {
+	 printf("spi_context_complete called: ctx=%p, status=%d\n", ctx, status);
 #ifdef CONFIG_SPI_ASYNC
 	if (!ctx->asynchronous) {
 		ctx->sync_status = status;

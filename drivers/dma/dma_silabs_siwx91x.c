@@ -13,6 +13,7 @@
 #include <zephyr/drivers/dma.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/types.h>
 #include "rsi_rom_udma.h"
 #include "rsi_rom_udma_wrapper.h"
@@ -25,6 +26,8 @@
 #define DMA_CH_PRIORITY_LOW              0
 #define UDMA_ADDR_INC_NONE               0x03
 #define UDMA_MODE_PER_ALT_SCATTER_GATHER 0x07
+
+#define DMA_CHANNELS_COUNT DT_INST_PROP(inst, dma_channels)
 
 LOG_MODULE_REGISTER(si91x_dma, CONFIG_DMA_LOG_LEVEL);
 
@@ -47,7 +50,7 @@ struct dma_siwx91x_config {
 	RSI_UDMA_DESC_T *sram_desc_addr; /* SRAM Address for UDMA Descriptor Storage */
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
-	void (*irq_configure)(void);     /* IRQ configure function */
+	void (*irq_configure)(void); /* IRQ configure function */
 };
 
 struct dma_siwx91x_data {
@@ -55,9 +58,10 @@ struct dma_siwx91x_data {
 	UDMA_Channel_Info *chan_info;
 	struct dma_siwx91x_channel_info *zephyr_channel_info;
 	struct sys_mem_blocks *dma_desc_pool; /* Pointer to the memory pool for DMA descriptor */
-	RSI_UDMA_DATACONTEXT_T udma_handle;  /* Buffer to store UDMA handle
-					      * related information
-					      */
+	RSI_UDMA_DATACONTEXT_T udma_handle;   /* Buffer to store UDMA handle
+					       * related information
+					       */
+	struct dma_config *saved_configs;					  
 };
 
 static enum dma_xfer_dir siwx91x_transfer_direction(uint32_t dir)
@@ -346,12 +350,10 @@ static int siwx91x_direct_chan_config(const struct device *dev, RSI_UDMA_HANDLE_
 	/* Clear the CHNL_PRI_ALT_CLR to use primary DMA descriptor structure */
 	sys_write32(BIT(channel), (mem_addr_t)&cfg->reg->CHNL_PRI_ALT_CLR);
 
-	status = UDMAx_ChannelConfigure(&udma_resources, (uint8_t)channel,
-					config->head_block->source_address,
-					config->head_block->dest_address,
-					dma_transfer_num, channel_control,
-					&channel_config, NULL, data->chan_info,
-					udma_handle);
+	status = UDMAx_ChannelConfigure(
+		&udma_resources, (uint8_t)channel, config->head_block->source_address,
+		config->head_block->dest_address, dma_transfer_num, channel_control,
+		&channel_config, NULL, data->chan_info, udma_handle);
 	if (status) {
 		return -EIO;
 	}
@@ -407,10 +409,35 @@ static int siwx91x_dma_configure(const struct device *dev, uint32_t channel,
 
 	data->zephyr_channel_info[channel].dma_callback = config->dma_callback;
 	data->zephyr_channel_info[channel].cb_data = config->user_data;
+    
+	data->saved_configs[channel] = *config;
 
 	atomic_set_bit(data->dma_ctx.atomic, channel);
 
 	return 0;
+}
+
+static int dma_siwx91x_pm_action(const struct device *dev, enum pm_device_action action)
+{
+    const struct dma_siwx91x_config *cfg = dev->config;
+    struct dma_siwx91x_data *data = dev->data;
+    int ret;
+
+    switch (action) {
+    case PM_DEVICE_ACTION_RESUME:
+        ret = clock_control_on(cfg->clock_dev, cfg->clock_subsys);
+        if (ret) {
+            return ret;
+        }
+        break;
+    case PM_DEVICE_ACTION_SUSPEND:
+        return 0;
+        break;
+    default:
+        return -ENOTSUP;
+        break;
+    }
+    return 0;
 }
 
 /* Function to reload UDMA channel for new transfer */
@@ -591,7 +618,7 @@ static int siwx91x_dma_init(const struct device *dev)
 		return -EBUSY;
 	}
 
-	return 0;
+	return pm_device_driver_init(dev, dma_siwx91x_pm_action);
 }
 
 static void siwx91x_dma_isr(const struct device *dev)
@@ -656,6 +683,7 @@ out:
 	irq_enable(cfg->irq_number);
 }
 
+
 /* Store the Si91x DMA APIs */
 static DEVICE_API(dma, siwx91x_dma_api) = {
 	.config = siwx91x_dma_configure,
@@ -666,42 +694,46 @@ static DEVICE_API(dma, siwx91x_dma_api) = {
 	.chan_filter = siwx91x_dma_chan_filter,
 };
 
-#define SIWX91X_DMA_INIT(inst)                                                                     \
-	static ATOMIC_DEFINE(dma_channels_atomic_##inst, DT_INST_PROP(inst, dma_channels));        \
-	static UDMA_Channel_Info dma_channel_info_##inst[DT_INST_PROP(inst, dma_channels)];        \
-	SYS_MEM_BLOCKS_DEFINE_STATIC(desc_pool_##inst, sizeof(RSI_UDMA_DESC_T),                    \
-				     CONFIG_DMA_SILABS_SIWX91X_SG_BUFFER_COUNT, 4);                \
+#define SIWX91X_DMA_INIT(inst)                                                                       \
+	static ATOMIC_DEFINE(dma_channels_atomic_##inst, DT_INST_PROP(inst, dma_channels));          \
+	static UDMA_Channel_Info dma_channel_info_##inst[DT_INST_PROP(inst, dma_channels)];          \
+	SYS_MEM_BLOCKS_DEFINE_STATIC(desc_pool_##inst, sizeof(RSI_UDMA_DESC_T),                      \
+				     CONFIG_DMA_SILABS_SIWX91X_SG_BUFFER_COUNT, 4);                  \
 	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, silabs_sram_region),                               \
 		    (),                                                                            \
 		    (static __aligned(1024) RSI_UDMA_DESC_T                                        \
-			     siwx91x_dma_chan_desc##inst[DT_INST_PROP(inst, dma_channels) * 2];))  \
-	static struct dma_siwx91x_channel_info                                                     \
-		zephyr_channel_info_##inst[DT_INST_PROP(inst, dma_channels)];                      \
-	static struct dma_siwx91x_data dma_data_##inst = {                                         \
-		.dma_ctx.magic = DMA_MAGIC,                                                        \
-		.dma_ctx.dma_channels = DT_INST_PROP(inst, dma_channels),                          \
-		.dma_ctx.atomic = dma_channels_atomic_##inst,                                      \
-		.chan_info = dma_channel_info_##inst,                                              \
-		.zephyr_channel_info = zephyr_channel_info_##inst,                                 \
-		.dma_desc_pool = &desc_pool_##inst,                                                \
-	};                                                                                         \
-	static void siwx91x_dma_irq_configure_##inst(void)                                         \
-	{                                                                                          \
-		IRQ_CONNECT(DT_INST_IRQ(inst, irq), DT_INST_IRQ(inst, priority), siwx91x_dma_isr,  \
-			    DEVICE_DT_INST_GET(inst), 0);                                          \
-		irq_enable(DT_INST_IRQ(inst, irq));                                                \
-	}                                                                                          \
-	static const struct dma_siwx91x_config dma_cfg_##inst = {                                  \
-		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(inst)),                             \
-		.clock_subsys = (clock_control_subsys_t)DT_INST_PHA(inst, clocks, clkid),          \
-		.reg = (UDMA0_Type *)DT_INST_REG_ADDR(inst),                                       \
-		.irq_number = DT_INST_PROP_BY_IDX(inst, interrupts, 0),                            \
+			     siwx91x_dma_chan_desc##inst[DT_INST_PROP(inst, dma_channels) * 2];)) \
+	static struct dma_siwx91x_channel_info                                                       \
+		zephyr_channel_info_##inst[DT_INST_PROP(inst, dma_channels)];                        \
+		static struct dma_config saved_configs_##inst[DT_INST_PROP(inst, dma_channels)];  \
+	static struct dma_siwx91x_data dma_data_##inst = {                                           \
+		.dma_ctx.magic = DMA_MAGIC,                                                          \
+		.dma_ctx.dma_channels = DT_INST_PROP(inst, dma_channels),                            \
+		.dma_ctx.atomic = dma_channels_atomic_##inst,                                        \
+		.chan_info = dma_channel_info_##inst,                                                \
+		.zephyr_channel_info = zephyr_channel_info_##inst,                                   \
+		.dma_desc_pool = &desc_pool_##inst,                                                  \
+		.saved_configs = saved_configs_##inst,  \
+	};                                                                                           \
+	static void siwx91x_dma_irq_configure_##inst(void)                                           \
+	{                                                                                            \
+		IRQ_CONNECT(DT_INST_IRQ(inst, irq), DT_INST_IRQ(inst, priority), siwx91x_dma_isr,    \
+			    DEVICE_DT_INST_GET(inst), 0);                                            \
+		irq_enable(DT_INST_IRQ(inst, irq));                                                  \
+	}                                                                                            \
+	static const struct dma_siwx91x_config dma_cfg_##inst = {                                    \
+		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(inst)),                               \
+		.clock_subsys = (clock_control_subsys_t)DT_INST_PHA(inst, clocks, clkid),            \
+		.reg = (UDMA0_Type *)DT_INST_REG_ADDR(inst),                                         \
+		.irq_number = DT_INST_PROP_BY_IDX(inst, interrupts, 0),                              \
 		.sram_desc_addr = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, silabs_sram_region),     \
 					      ((RSI_UDMA_DESC_T *)DT_REG_ADDR(DT_INST_PHANDLE(inst, silabs_sram_region))), \
-					      (siwx91x_dma_chan_desc##inst)),                      \
-		.irq_configure = siwx91x_dma_irq_configure_##inst,                                 \
-	};                                                                                         \
-	DEVICE_DT_INST_DEFINE(inst, siwx91x_dma_init, NULL, &dma_data_##inst, &dma_cfg_##inst,     \
-			      POST_KERNEL, CONFIG_DMA_INIT_PRIORITY, &siwx91x_dma_api);
+					      (siwx91x_dma_chan_desc##inst)),                                             \
+			 .irq_configure = siwx91x_dma_irq_configure_##inst,                          \
+	};                                                                                           \
+	PM_DEVICE_DT_INST_DEFINE(inst, dma_siwx91x_pm_action);                                          \
+	DEVICE_DT_INST_DEFINE(inst, siwx91x_dma_init, PM_DEVICE_DT_INST_GET(inst), &dma_data_##inst,       \
+			      &dma_cfg_##inst, POST_KERNEL, CONFIG_DMA_INIT_PRIORITY,                \
+			      &siwx91x_dma_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SIWX91X_DMA_INIT)
