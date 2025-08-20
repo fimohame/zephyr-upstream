@@ -15,6 +15,7 @@
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/irq.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/sys/sys_io.h>
 #include <zephyr/logging/log.h>
 #include "clock_update.h"
@@ -833,31 +834,42 @@ static int i2s_siwx91x_trigger(const struct device *dev, enum i2s_dir dir, enum 
 	return 0;
 }
 
-static int i2s_siwx91x_init(const struct device *dev)
+static int i2s_siwx91x_pm_action(const struct device *dev, enum pm_device_action action)
 {
 	const struct i2s_siwx91x_config *cfg = dev->config;
+    int ret;
+
+    if (action == PM_DEVICE_ACTION_RESUME) {
+        ret = clock_control_on(cfg->clock_dev, cfg->clock_subsys_peripheral);
+        if (ret) {
+            return ret;
+        }
+        ret = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
+        if (ret) {
+            return ret;
+        }
+
+        cfg->reg->I2S_IER_b.IEN = 1;
+        cfg->reg->I2S_IRER_b.RXEN = 0;
+        cfg->reg->I2S_ITER_b.TXEN = 0;
+
+    } else if (IS_ENABLED(CONFIG_PM_DEVICE) && (action == PM_DEVICE_ACTION_SUSPEND)) {
+		return 0;
+    } else {
+        return -ENOTSUP;
+    }
+
+    return 0;
+}
+static int i2s_siwx91x_init(const struct device *dev)
+{
 	struct i2s_siwx91x_data *data = dev->data;
-	int ret;
-
-	ret = clock_control_on(cfg->clock_dev, cfg->clock_subsys_peripheral);
-	if (ret) {
-		return ret;
-	}
-
-	ret = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
-	if (ret) {
-		return ret;
-	}
-
-	cfg->reg->I2S_IER_b.IEN = 1;
-	cfg->reg->I2S_IRER_b.RXEN = 0;
-	cfg->reg->I2S_ITER_b.TXEN = 0;
 
 	k_sem_init(&data->rx.sem, 0, CONFIG_I2S_SILABS_SIWX91X_RX_BLOCK_COUNT);
 	k_sem_init(&data->tx.sem, CONFIG_I2S_SILABS_SIWX91X_TX_BLOCK_COUNT,
 		   CONFIG_I2S_SILABS_SIWX91X_TX_BLOCK_COUNT);
 
-	return ret;
+	return pm_device_driver_init(dev, i2s_siwx91x_pm_action);
 }
 
 static DEVICE_API(i2s, i2s_siwx91x_driver_api) = {
@@ -903,8 +915,9 @@ static DEVICE_API(i2s, i2s_siwx91x_driver_api) = {
 		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(inst),                                      \
 		.channel_group = DT_INST_PROP(inst, silabs_channel_group),                         \
 	};                                                                                         \
-                                                                                                   \
-	DEVICE_DT_INST_DEFINE(inst, &i2s_siwx91x_init, NULL, &i2s_data_##inst, &i2s_config_##inst, \
+        PM_DEVICE_DT_INST_DEFINE(inst, i2s_siwx91x_pm_action);                                     \
+	DEVICE_DT_INST_DEFINE(inst, &i2s_siwx91x_init, PM_DEVICE_DT_INST_GET(inst),		   \
+			      &i2s_data_##inst, &i2s_config_##inst, 				   \
 			      POST_KERNEL, CONFIG_I2S_INIT_PRIORITY, &i2s_siwx91x_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SIWX91X_I2S_INIT)
