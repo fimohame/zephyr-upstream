@@ -18,6 +18,7 @@
 #include <zephyr/sys/sys_io.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 #include "clock_update.h"
 
 LOG_MODULE_REGISTER(spi_siwx91x_gspi, CONFIG_SPI_LOG_LEVEL);
@@ -200,7 +201,7 @@ static void gspi_siwx91x_dma_rx_callback(const struct device *dev, void *user_da
 	ARG_UNUSED(dev);
 
 	if (status >= 0 && status != DMA_STATUS_COMPLETE) {
-		return;
+		goto pm_put_exit;
 	}
 
 	if (status < 0) {
@@ -210,6 +211,9 @@ static void gspi_siwx91x_dma_rx_callback(const struct device *dev, void *user_da
 
 	spi_context_cs_control(instance_ctx, false);
 	spi_context_complete(instance_ctx, spi_dev, status);
+
+pm_put_exit:
+	pm_device_runtime_put_async(spi_dev, K_NO_WAIT);
 }
 
 static int gspi_siwx91x_dma_config(const struct device *dev,
@@ -534,8 +538,14 @@ static int gspi_siwx91x_transceive(const struct device *dev, const struct spi_co
 	struct gspi_siwx91x_data *data = dev->data;
 	int ret = 0;
 
+	ret = pm_device_runtime_get(dev);
+	if (ret < 0) {
+		return ret;
+	}
+
 	if (!spi_siwx91x_is_dma_enabled_instance(dev) && asynchronous) {
 		ret = -ENOTSUP;
+		goto pm_put_exit;
 	}
 
 	spi_context_lock(&data->ctx, asynchronous, cb, userdata, config);
@@ -544,7 +554,7 @@ static int gspi_siwx91x_transceive(const struct device *dev, const struct spi_co
 		ret = gspi_siwx91x_config(dev, config, cb, userdata);
 		if (ret) {
 			spi_context_release(&data->ctx, ret);
-			return ret;
+			goto pm_put_exit;
 		}
 	}
 
@@ -560,6 +570,11 @@ static int gspi_siwx91x_transceive(const struct device *dev, const struct spi_co
 		/* Perform synchronous polling transceive */
 		ret = gspi_siwx91x_transceive_polling_sync(dev, &data->ctx);
 		spi_context_unlock_unconditionally(&data->ctx);
+	}
+
+pm_put_exit:
+	if (!asynchronous) {
+		pm_device_runtime_put(dev);
 	}
 
 	return ret;
@@ -599,7 +614,12 @@ static int gspi_siwx91x_pm_action(const struct device *dev, enum pm_device_actio
 	struct gspi_siwx91x_data *data = dev->data;
 	int ret;
 
-	if (action == PM_DEVICE_ACTION_RESUME) {
+	switch (action) {
+	case PM_DEVICE_ACTION_RESUME:
+		break;
+	case PM_DEVICE_ACTION_SUSPEND:
+		break;
+	case PM_DEVICE_ACTION_TURN_ON:
 		ret = clock_control_on(cfg->clock_dev, cfg->clock_subsys);
 		if (ret < 0 && ret != -EALREADY) {
 			return ret;
@@ -613,9 +633,14 @@ static int gspi_siwx91x_pm_action(const struct device *dev, enum pm_device_actio
 		cfg->reg->GSPI_BUS_MODE_b.SPI_HIGH_PERFORMANCE_EN = 1;
 		cfg->reg->GSPI_CONFIG1_b.GSPI_MANUAL_CSN = 0;
 		data->ctx.config = NULL;
-	} else if (IS_ENABLED(CONFIG_PM_DEVICE) && (action == PM_DEVICE_ACTION_SUSPEND)) {
-		return 0;
-	} else {
+		break;
+	case PM_DEVICE_ACTION_TURN_OFF:
+		ret = clock_control_off(cfg->clock_dev, cfg->clock_subsys);
+		if (ret < 0 && ret != -EALREADY) {
+			return ret;
+		}
+		break;
+	default:
 		return -ENOTSUP;
 	}
 

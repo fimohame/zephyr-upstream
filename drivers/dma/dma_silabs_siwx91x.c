@@ -573,9 +573,14 @@ static int dma_siwx91x_pm_action(const struct device *dev, enum pm_device_action
 	};
 	int ret;
 
-	if (action == PM_DEVICE_ACTION_RESUME) {
+	switch (action) {
+	case PM_DEVICE_ACTION_RESUME:
+		break;
+	case PM_DEVICE_ACTION_SUSPEND:
+		break;
+	case PM_DEVICE_ACTION_TURN_ON:
 		ret = clock_control_on(cfg->clock_dev, cfg->clock_subsys);
-		if (ret) {
+		if (ret < 0 && ret != -EALREADY) {
 			return ret;
 		}
 
@@ -585,15 +590,19 @@ static int dma_siwx91x_pm_action(const struct device *dev, enum pm_device_action
 			return -EINVAL;
 		}
 
-		/* Connect the DMA interrupt */
 		cfg->irq_configure();
 
 		if (UDMAx_DMAEnable(&udma_resources, udma_handle) != 0) {
 			return -EBUSY;
 		}
-	} else if (IS_ENABLED(CONFIG_PM_DEVICE) && (action == PM_DEVICE_ACTION_SUSPEND)) {
-		return 0;
-	} else {
+		break;
+	case PM_DEVICE_ACTION_TURN_OFF:
+		ret = clock_control_off(cfg->clock_dev, cfg->clock_subsys);
+		if (ret < 0 && ret != -EALREADY) {
+			return ret;
+		}
+		break;
+	default:
 		return -ENOTSUP;
 	}
 
