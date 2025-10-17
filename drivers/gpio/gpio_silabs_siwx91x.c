@@ -13,7 +13,7 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/irq.h>
 #include <zephyr/pm/device.h>
-#include <zephyr/pm/device_runtime.h>
+#include <zephyr/pm/policy.h>
 
 /* Zephyr GPIO header must be included after driver, due to symbol conflicts
  * for GPIO_INPUT and GPIO_OUTPUT between preprocessor macros in the Zephyr
@@ -67,7 +67,20 @@ struct gpio_siwx91x_port_data {
 	struct gpio_siwx91x_pin_config_info *pin_config_info;
 	uint8_t total_pin_cnt;
 	uint8_t pin_cnt;
+	uint8_t pin_pm_lock[MAX_PIN_COUNT];
 };
+
+static void gpio_siwx91x_pm_policy_state_lock_get(const struct device *dev)
+{
+    pm_policy_state_lock_get(PM_STATE_SUSPEND_TO_IDLE, PM_ALL_SUBSTATES);
+    pm_policy_state_lock_get(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
+}
+
+static void gpio_siwx91x_pm_policy_state_lock_put(const struct device *dev)
+{
+    pm_policy_state_lock_put(PM_STATE_SUSPEND_TO_IDLE, PM_ALL_SUBSTATES);
+    pm_policy_state_lock_put(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
+}
 
 /* Functions */
 static int gpio_siwx91x_pin_configure(const struct device *dev, gpio_pin_t pin, gpio_flags_t flags)
@@ -154,6 +167,15 @@ static int gpio_siwx91x_pin_configure(const struct device *dev, gpio_pin_t pin, 
 		port_data->pin_config_info[cur_cfg_pin].port_dev = dev;
 		port_data->pin_config_info[cur_cfg_pin].pin = pin;
 		port_data->pin_config_info[cur_cfg_pin].flags = flags;
+        	bool pm_lock_state = flags & (GPIO_INPUT | GPIO_OUTPUT);
+        	if (pm_lock_state && !port_data->pin_pm_lock[pin]) {
+            		gpio_siwx91x_pm_policy_state_lock_get(dev);
+            		port_data->pin_pm_lock[pin] = 1;
+        	}
+        	if (!pm_lock_state && port_data->pin_pm_lock[pin]) {
+            		gpio_siwx91x_pm_policy_state_lock_put(dev);
+            		port_data->pin_pm_lock[pin] = 0;
+        	}
 	} else {
 		return -EINVAL;
 	}
@@ -300,7 +322,17 @@ static int gpio_siwx91x_interrupt_configure(const struct device *port, gpio_pin_
 	const struct device *parent = port_cfg->parent;
 	const struct gpio_siwx91x_common_config *cfg = parent->config;
 	struct gpio_siwx91x_common_data *data = parent->data;
+	struct gpio_siwx91x_port_data *port_data = port->data;
 	sl_si91x_gpio_interrupt_config_flag_t flags = 0;
+
+	if (!(mode & GPIO_INT_DISABLE) && !port_data->pin_pm_lock[pin]) {
+		gpio_siwx91x_pm_policy_state_lock_get(port);
+		port_data->pin_pm_lock[pin] = 1;
+    	}
+	if ((mode & GPIO_INT_DISABLE) && port_data->pin_pm_lock[pin]) {
+		gpio_siwx91x_pm_policy_state_lock_put(port);
+		port_data->pin_pm_lock[pin] = 0;
+	}
 
 	if (mode & GPIO_INT_DISABLE) {
 		ARRAY_FOR_EACH(data->interrupts, i) {
